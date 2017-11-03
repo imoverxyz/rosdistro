@@ -31,21 +31,46 @@
 # ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
+import os
 import socket
 import time
 try:
-    from urllib.request import urlopen
+    from urllib.request import Request, urlopen
     from urllib.error import HTTPError
     from urllib.error import URLError
 except ImportError:
-    from urllib2 import urlopen
+    from urllib2 import Request, urlopen
     from urllib2 import HTTPError
     from urllib2 import URLError
 
 
+GITHUB_USER = os.getenv('GITHUB_USER', None)
+GITHUB_PASSWORD = os.getenv('GITHUB_PASSWORD', None)
+GITHUB_TOKEN = os.getenv('GITHUB_TOKEN', None)
+
+
+def auth_header():
+    if GITHUB_TOKEN:
+        return auth_header_from_oauth_token(GITHUB_TOKEN)
+    elif GITHUB_USER and GITHUB_PASSWORD:
+        return auth_header_from_basic_auth(GITHUB_USER, GITHUB_PASSWORD)
+    return None
+
+
+def auth_header_from_basic_auth(user, password):
+    return "Basic {0}".format(base64.b64encode('{0}:{1}'.format(user, password)))
+
+
+def auth_header_from_oauth_token(token):
+    return "token " + token
+
+
 def load_url(url, retry=2, retry_period=1, timeout=10, skip_decode=False):
     try:
-        fh = urlopen(url, timeout=timeout)
+        req = Request(url)
+        if auth_header():
+            req.add_header('Authorization', auth_header())
+        fh = urlopen(req, timeout=timeout)
     except HTTPError as e:
         if e.code in [500, 502, 503] and retry:
             time.sleep(retry_period)
